@@ -211,10 +211,17 @@ $picksAcrossAllMatches = 0; // veces que el campeón se picó en cualquier rol
 // Si consigues Personal API key (3000 req/10s), sube esto a 1000+ sin problema.
 $maxMatchesToInspect = min(count($matchIds), 250);
 
-foreach (array_slice($matchIds, 0, $maxMatchesToInspect) as $mid) {
-    try {
-        $mReg = $matchesByRegion[$mid] ?? ($isGlobal ? 'euw' : $region);
-        $detail = riot_match_detail($mReg, $mid);
+// Agrupar los match IDs por región y hacer batches paralelos
+$idsToProcess = array_slice($matchIds, 0, $maxMatchesToInspect);
+$byRegion = []; // region => [mid, mid, ...]
+foreach ($idsToProcess as $mid) {
+    $mReg = $matchesByRegion[$mid] ?? ($isGlobal ? 'euw' : $region);
+    $byRegion[$mReg][] = $mid;
+}
+
+foreach ($byRegion as $mReg => $mids) {
+    $batchResults = riot_match_details_batch($mReg, $mids);
+    foreach ($batchResults as $mid => $detail) {
         if ($detail['status'] !== 200) continue;
         $info = $detail['body']['info'] ?? [];
         if (($info['queueId'] ?? 0) !== 420) continue;
@@ -232,15 +239,10 @@ foreach (array_slice($matchIds, 0, $maxMatchesToInspect) as $mid) {
             if (($p['championId'] ?? 0) !== $champNumericId) continue;
             $picksAcrossAllMatches++;
             if (($p['teamPosition'] ?? '') === $riotRole) {
-                // Añadir esta partida al análisis
-                $matches[] = [
-                    'match' => $mid,
-                    'info'  => $info,
-                    'player'=> $p,
-                ];
+                $matches[] = ['match' => $mid, 'info' => $info, 'player' => $p];
             }
         }
-    } catch (Throwable $e) {}
+    }
 }
 
 if (empty($matches)) {

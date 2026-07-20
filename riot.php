@@ -159,6 +159,113 @@ function riot_request(string $host, string $path, ?string $cacheKey = null, ?int
     ];
 }
 
+/**
+ * Batch de requests paralelas con curl_multi. Respeta rate limit reservando
+ * cuota ANTES de lanzar el batch (bloquea si no hay hueco).
+ *
+ * $items: array de ['host' => ..., 'path' => ..., 'cache_key' => ..., 'ttl' => ..., 'id' => ...]
+ * Retorna: array de ['id' => ..., 'status' => ..., 'body' => ..., 'raw' => ...]
+ *
+ * $concurrency: cuántos requests en paralelo simultáneamente (default 15, tope 20 por rate limit/s)
+ */
+function riot_multi_get(array $items, int $concurrency = 15): array {
+    $results = [];
+    if (empty($items)) return $results;
+
+    // Servir desde cache primero
+    $toFetch = [];
+    foreach ($items as $it) {
+        if (!empty($it['cache_key']) && isset($it['ttl'])) {
+            $cached = riot_cache_get($it['cache_key'], $it['ttl']);
+            if ($cached !== null) {
+                $results[$it['id']] = [
+                    'id' => $it['id'],
+                    'status' => 200,
+                    'body' => json_decode($cached, true),
+                    'raw' => $cached,
+                    'cached' => true,
+                ];
+                continue;
+            }
+        }
+        $toFetch[] = $it;
+    }
+    if (empty($toFetch)) return $results;
+
+    $cfg = riot_config();
+    $token = $cfg['riot_api_key'];
+
+    // Procesar en batches de $concurrency
+    foreach (array_chunk($toFetch, $concurrency) as $batch) {
+        // Reservar cuota rate limit para todo el batch antes de lanzar
+        for ($i = 0; $i < count($batch); $i++) riot_rate_limit_check();
+
+        $mh = curl_multi_init();
+        $handles = [];
+        foreach ($batch as $it) {
+            $ch = curl_init("https://{$it['host']}{$it['path']}");
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER     => ['X-Riot-Token: ' . $token],
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $handles[] = ['ch' => $ch, 'item' => $it];
+        }
+
+        // Ejecutar todos en paralelo
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            if ($running) curl_multi_select($mh, 0.1);
+        } while ($running > 0);
+
+        // Recoger resultados
+        foreach ($handles as $h) {
+            $raw    = curl_multi_getcontent($h['ch']);
+            $status = curl_getinfo($h['ch'], CURLINFO_HTTP_CODE);
+            $item   = $h['item'];
+
+            if ($status === 200 && !empty($item['cache_key']) && isset($item['ttl'])) {
+                riot_cache_put($item['cache_key'], $raw);
+            }
+            $results[$item['id']] = [
+                'id'     => $item['id'],
+                'status' => $status,
+                'body'   => $raw ? json_decode($raw, true) : null,
+                'raw'    => $raw ?: null,
+                'cached' => false,
+            ];
+
+            curl_multi_remove_handle($mh, $h['ch']);
+            curl_close($h['ch']);
+        }
+        curl_multi_close($mh);
+    }
+
+    return $results;
+}
+
+/**
+ * Wrapper: fetch múltiples match details en paralelo. Cacheado forever.
+ */
+function riot_match_details_batch(string $region, array $matchIds): array {
+    $r = riot_resolve_region($region);
+    $host = $r['regional'] . '.api.riotgames.com';
+    $items = [];
+    foreach ($matchIds as $mid) {
+        $items[] = [
+            'id' => $mid,
+            'host' => $host,
+            'path' => "/lol/match/v5/matches/{$mid}",
+            'cache_key' => "match_{$mid}",
+            'ttl' => 0, // forever
+        ];
+    }
+    return riot_multi_get($items, 15);
+}
+
 // -----------------------------------------------------------------------
 // Endpoints Riot — todos aceptan $region
 // -----------------------------------------------------------------------
