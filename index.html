@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoL Coach · Análisis de Draft</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+    <header>
+        <h1>🎯 LoL Coach</h1>
+        <p class="subtitle">Análisis táctico de tu partida en base a la composición · <span id="patch">…</span></p>
+    </header>
+
+    <nav class="tabs">
+        <button class="tab-btn active" data-tab="coach">🎯 Coach de partida</button>
+        <button class="tab-btn" data-tab="builds">📊 Champion Builds</button>
+        <button class="tab-btn" data-tab="search">🔍 Buscar jugador (EUW)</button>
+    </nav>
+
+    <!-- ====================== TAB: COACH ====================== -->
+    <div class="tab-view" data-tab="coach">
+    <main>
+        <section class="form-panel">
+            <div class="role-picker">
+                <label for="playerRole">Juegas de</label>
+                <select id="playerRole">
+                    <option value="top">Top</option>
+                    <option value="jng">Jungla</option>
+                    <option value="mid" selected>Mid</option>
+                    <option value="adc">ADC</option>
+                    <option value="supp">Support</option>
+                </select>
+                <span class="hint">Marcaremos tu casilla y la de tu rival directo.</span>
+            </div>
+
+            <div class="teams">
+                <div class="team allies">
+                    <div class="team-header"><span class="dot"></span><span>Tu equipo</span></div>
+                    <div class="lane" data-team="allies" data-lane="top"><span class="lane-tag">TOP</span><div class="picker" data-target="allies.top"></div></div>
+                    <div class="lane" data-team="allies" data-lane="jng"><span class="lane-tag">JNG</span><div class="picker" data-target="allies.jng"></div></div>
+                    <div class="lane" data-team="allies" data-lane="mid"><span class="lane-tag">MID</span><div class="picker" data-target="allies.mid"></div></div>
+                    <div class="lane" data-team="allies" data-lane="adc"><span class="lane-tag">ADC</span><div class="picker" data-target="allies.adc"></div></div>
+                    <div class="lane" data-team="allies" data-lane="supp"><span class="lane-tag">SUP</span><div class="picker" data-target="allies.supp"></div></div>
+                </div>
+                <div class="team enemies">
+                    <div class="team-header"><span class="dot"></span><span>Enemigos</span></div>
+                    <div class="lane" data-team="enemies" data-lane="top"><span class="lane-tag">TOP</span><div class="picker" data-target="enemies.top"></div></div>
+                    <div class="lane" data-team="enemies" data-lane="jng"><span class="lane-tag">JNG</span><div class="picker" data-target="enemies.jng"></div></div>
+                    <div class="lane" data-team="enemies" data-lane="mid"><span class="lane-tag">MID</span><div class="picker" data-target="enemies.mid"></div></div>
+                    <div class="lane" data-team="enemies" data-lane="adc"><span class="lane-tag">ADC</span><div class="picker" data-target="enemies.adc"></div></div>
+                    <div class="lane" data-team="enemies" data-lane="supp"><span class="lane-tag">SUP</span><div class="picker" data-target="enemies.supp"></div></div>
+                </div>
+            </div>
+
+            <button id="analyze" class="analyze-btn">Analizar partida</button>
+            <p id="status" class="status"></p>
+        </section>
+
+        <section id="result" class="result-panel"></section>
+    </main>
+    </div>
+
+    <!-- ====================== TAB: CHAMPION BUILDS ====================== -->
+    <div class="tab-view" data-tab="builds" hidden>
+        <section class="builds-panel">
+            <div class="builds-form">
+                <div class="picker" id="builderChampionPicker" data-target="builderChampion"></div>
+                <select id="builderRole">
+                    <option value="top">Top</option>
+                    <option value="jng">Jungla</option>
+                    <option value="mid" selected>Mid</option>
+                    <option value="adc">ADC</option>
+                    <option value="supp">Support</option>
+                </select>
+                <select id="builderRegion" title="Región">
+                    <option value="global" selected>🌍 Global</option>
+                </select>
+                <select id="builderRank" title="Rango">
+                    <option value="all">All Tiers</option>
+                    <option value="challenger">Challenger</option>
+                    <option value="grandmaster">Grandmaster</option>
+                    <option value="masterplus">Master+</option>
+                    <option value="master">Master</option>
+                    <option value="diamondplus">Diamond+</option>
+                    <option value="diamond">Diamond</option>
+                    <option value="emeraldplus" selected>Emerald+</option>
+                    <option value="emerald">Emerald</option>
+                    <option value="platinumplus">Platinum+</option>
+                    <option value="platinum">Platinum</option>
+                    <option value="goldplus">Gold+</option>
+                    <option value="gold">Gold</option>
+                    <option value="silver">Silver</option>
+                    <option value="bronze">Bronze</option>
+                    <option value="iron">Iron</option>
+                </select>
+                <button id="loadBuildBtn" class="analyze-btn compact">Cargar build</button>
+            </div>
+            <p id="buildsStatus" class="status"></p>
+            <div id="buildsResult"></div>
+        </section>
+    </div>
+
+    <!-- ====================== TAB: SEARCH ====================== -->
+    <div class="tab-view" data-tab="search" hidden>
+        <section class="search-panel">
+            <div class="search-form">
+                <select id="regionSelect" title="Región">
+                    <option value="euw" selected>EUW</option>
+                </select>
+                <input type="text" id="riotIdInput" placeholder="Nombre#TAG   (ej: Faker#KR1)" autocomplete="off">
+                <button id="searchBtn" class="analyze-btn compact">Buscar</button>
+            </div>
+            <p id="searchStatus" class="status"></p>
+            <div id="playerCard"></div>
+        </section>
+    </div>
+
+    <footer class="riot-footer">
+        <p>
+            LoL Coach isn't endorsed by Riot Games and doesn't reflect the views or opinions
+            of Riot Games or anyone officially involved in producing or managing Riot Games properties.
+            Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
+        </p>
+    </footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
